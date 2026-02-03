@@ -1,0 +1,1690 @@
+zabbix_export:
+  version: '7.2'
+  template_groups:
+    - uuid: 7c2cb727f85b492d88cd56e17127c64d
+      name: Templates/SAN
+  templates:
+    - uuid: 894643e024f540b58bc40363a97fd233
+      template: 'Dell storage SC by SNMP'
+      name: 'Dell storage SC by SNMP'
+      vendor:
+        name: m-tomas
+        version: 7.2-0
+      templates:
+        - name: 'Generic SNMP module by SNMP'
+      groups:
+        - name: Templates/SAN
+      items:
+        - uuid: d13334e449f14a68b500c57dbd764d72
+          name: 'Overall status'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.6.0]'
+          key: overall.status
+          delay: 3m
+          description: |
+            DELL-STORAGE-SC-MIB:  productidglobal status
+            other(1)
+            unknown(2)
+            ok(3)
+            noncritical(4)
+            critical(5)
+            nonrecoverable(6)
+            The value here maps from the System Status icon on the SC GUI: grey->unknown, green->ok, yellow->noncritical, red->critical.
+          valuemap:
+            name: 'Overall status'
+          tags:
+            - tag: application
+              value: status
+            - tag: component
+              value: system
+          triggers:
+            - uuid: bbd26da1503a4695b6770cf62f464e03
+              expression: 'last(/Dell storage SC by SNMP/overall.status)=5'
+              name: 'Overall status is critical'
+              priority: HIGH
+              dependencies:
+                - name: 'Overall status is nonrecoverable'
+                  expression: 'last(/Dell storage SC by SNMP/overall.status)=6'
+            - uuid: 34e0f1c05ead43e4ade7cc82511bd989
+              expression: 'last(/Dell storage SC by SNMP/overall.status)=4'
+              name: 'Overall status is noncritical'
+              priority: AVERAGE
+              dependencies:
+                - name: 'Overall status is critical'
+                  expression: 'last(/Dell storage SC by SNMP/overall.status)=5'
+                - name: 'Overall status is nonrecoverable'
+                  expression: 'last(/Dell storage SC by SNMP/overall.status)=6'
+            - uuid: d0029866fb7145bd9cd9d381e5d447ac
+              expression: 'last(/Dell storage SC by SNMP/overall.status)=6'
+              name: 'Overall status is nonrecoverable'
+              priority: DISASTER
+        - uuid: a97f755620f2406186e2d81d4e8ba727
+          name: 'Serial number'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.5.0]'
+          key: serial.number
+          delay: 8h
+          value_type: CHAR
+          description: 'DELL-STORAGE-SC-MIB: productidserial number'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 10c4e9e367324e5e810ed59cb32a10a1
+              expression: 'change(/Dell storage SC by SNMP/serial.number)=1 and length(last(/Dell storage SC by SNMP/serial.number))>0'
+              name: 'Device has been replaced (new serial number received)'
+              opdata: 'Current serial number: {ITEM.LASTVALUE}'
+              priority: INFO
+              description: 'Acknowledge to close the problem manually.'
+              manual_close: 'YES'
+        - uuid: ee14a92fa2bc4ebaaf88d5516ea44151
+          name: 'Software version'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.7.0]'
+          key: software.version
+          delay: 1h
+          value_type: CHAR
+          description: 'DELL-STORAGE-SC-MIB: productidbuild number'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: application
+              value: version
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 174fe06b2d904075aab14464b796fa81
+              expression: 'change(/Dell storage SC by SNMP/software.version)=1 and length(last(/Dell storage SC by SNMP/software.version))>0'
+              name: 'Software version has changed'
+              opdata: 'Current version: {ITEM.LASTVALUE}'
+              priority: INFO
+              description: 'Acknowledge to close the problem manually.'
+              manual_close: 'YES'
+      discovery_rules:
+        - uuid: a4562f8358344a288206168f5bc1bcae
+          name: 'Controller cache discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.28.1.4]'
+          key: controller.cache.discovery
+          delay: 8h
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: 5fc28b7347da46a49a592bd8d9943a0c
+              name: 'Cache ({#CACHE.NAME}): Battery status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.28.1.5.{#SNMPINDEX}]'
+              key: 'controller.cache.battery.status.[{#CACHE.NAME}]'
+              delay: 1h
+              description: |
+                DELL-STORAGE-SC-MIB: sc cache bat stat
+                noBattery(0)
+                normal(1)
+                expirationPending(2)
+                expired(3)
+              valuemap:
+                name: 'Controller cache battery status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: cache
+                  value: '{#CACHE.NAME}'
+                - tag: component
+                  value: cache
+              trigger_prototypes:
+                - uuid: 9e100f9c14294947a5c5fd00eaac33af
+                  expression: 'last(/Dell storage SC by SNMP/controller.cache.battery.status.[{#CACHE.NAME}])=2'
+                  name: 'Cache ({#CACHE.NAME}): Battery expiration pending'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Cache ({#CACHE.NAME}): Battery expired'
+                      expression: 'last(/Dell storage SC by SNMP/controller.cache.battery.status.[{#CACHE.NAME}])=3'
+                    - name: 'Cache ({#CACHE.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/controller.cache.status.[{#CACHE.NAME}])=2'
+                - uuid: e7cd12006dc943debba45b0c4c174727
+                  expression: 'last(/Dell storage SC by SNMP/controller.cache.battery.status.[{#CACHE.NAME}])=3'
+                  name: 'Cache ({#CACHE.NAME}): Battery expired'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Cache ({#CACHE.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/controller.cache.status.[{#CACHE.NAME}])=2'
+                - uuid: cc81f6785ce84145ad3b6bbad130fc25
+                  expression: 'last(/Dell storage SC by SNMP/controller.cache.battery.status.[{#CACHE.NAME}])=0'
+                  name: 'Cache ({#CACHE.NAME}): No battery'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Cache ({#CACHE.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/controller.cache.status.[{#CACHE.NAME}])=2'
+            - uuid: 86a403800311413a877045c1b76c0bb8
+              name: 'Cache ({#CACHE.NAME}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.28.1.3.{#SNMPINDEX}]'
+              key: 'controller.cache.status.[{#CACHE.NAME}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc cache status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: cache
+                  value: '{#CACHE.NAME}'
+                - tag: component
+                  value: cache
+              trigger_prototypes:
+                - uuid: b16bbd564d624013bb8ffc53bdc498fb
+                  expression: 'last(/Dell storage SC by SNMP/controller.cache.status.[{#CACHE.NAME}])=3'
+                  name: 'Cache ({#CACHE.NAME}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Cache ({#CACHE.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/controller.cache.status.[{#CACHE.NAME}])=2'
+                - uuid: 2c3814e8d3474ec18fcda09e81d17233
+                  expression: 'last(/Dell storage SC by SNMP/controller.cache.status.[{#CACHE.NAME}])=2'
+                  name: 'Cache ({#CACHE.NAME}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#CACHE.NAME}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.28.1.4
+                - '0'
+        - uuid: 17ce98869c6c462e8c4832afde6f08c8
+          name: 'Controller discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.13.1.4]'
+          key: controller.discovery
+          delay: 8h
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: af9a09bd981b4e11911a7f84849d2ae5
+              name: 'Controller ({#CONTROLLER.NAME}): Leader'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.13.1.12.{#SNMPINDEX}]'
+              key: 'controller.leader.[{#CONTROLLER.NAME}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc ctlr leader
+                true(1)
+                false(2)
+              valuemap:
+                name: True-false
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: controller
+                - tag: controller
+                  value: '{#CONTROLLER.NAME}'
+              trigger_prototypes:
+                - uuid: 5f7981a52f7f4e998404d7867be97009
+                  expression: 'last(/Dell storage SC by SNMP/controller.leader.[{#CONTROLLER.NAME}],#2)=2 and last(/Dell storage SC by SNMP/controller.leader.[{#CONTROLLER.NAME}],#1)=1'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Dell storage SC by SNMP/controller.leader.[{#CONTROLLER.NAME}],#2)=1 and last(/Dell storage SC by SNMP/controller.leader.[{#CONTROLLER.NAME}],#1)=2'
+                  name: 'Controller ({#CONTROLLER.NAME}) has become leader'
+                  priority: INFO
+                  description: 'Acknowledge to close the problem manually.'
+                  manual_close: 'YES'
+            - uuid: b9d3fb15ea5e43248a41bbadc2e2e916
+              name: 'Controller ({#CONTROLLER.NAME}): Model'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.13.1.7.{#SNMPINDEX}]'
+              key: 'controller.model.[{#CONTROLLER.NAME}]'
+              delay: 8h
+              value_type: CHAR
+              description: 'DELL-STORAGE-SC-MIB: sc ctlr model'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: controller
+                - tag: controller
+                  value: '{#CONTROLLER.NAME}'
+            - uuid: 94bf57b2d38d432e856065afbf33c746
+              name: 'Controller ({#CONTROLLER.NAME}): Serial number'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.13.1.8.{#SNMPINDEX}]'
+              key: 'controller.serial.number.[{#CONTROLLER.NAME}]'
+              delay: 8h
+              value_type: CHAR
+              description: 'DELL-STORAGE-SC-MIB: sc ctlr service tag'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: controller
+                - tag: controller
+                  value: '{#CONTROLLER.NAME}'
+              trigger_prototypes:
+                - uuid: 866e7bcdb87e493e9fb9f9ae1b005865
+                  expression: 'change(/Dell storage SC by SNMP/controller.serial.number.[{#CONTROLLER.NAME}])=1 and length(last(/Dell storage SC by SNMP/controller.serial.number.[{#CONTROLLER.NAME}]))>0'
+                  name: 'Controller ({#CONTROLLER.NAME}) has been replaced (new serial number received)'
+                  opdata: 'Current serial number: {ITEM.LASTVALUE}'
+                  priority: INFO
+                  description: 'Acknowledge to close the problem manually.'
+                  manual_close: 'YES'
+            - uuid: 351655013aae4175a59aa26cb0c03df8
+              name: 'Controller ({#CONTROLLER.NAME}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.13.1.3.{#SNMPINDEX}]'
+              key: 'controller.status.[{#CONTROLLER.NAME}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc ctlr status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: controller
+                - tag: controller
+                  value: '{#CONTROLLER.NAME}'
+              trigger_prototypes:
+                - uuid: c500eccaf65f423f863d736b2c42cabd
+                  expression: 'last(/Dell storage SC by SNMP/controller.status.[{#CONTROLLER.NAME}])=3'
+                  name: 'Controller ({#CONTROLLER.NAME}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Controller ({#CONTROLLER.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/controller.status.[{#CONTROLLER.NAME}])=2'
+                - uuid: 55838ad532d145b280bc84ff8f30dec8
+                  expression: 'last(/Dell storage SC by SNMP/controller.status.[{#CONTROLLER.NAME}])=2'
+                  name: 'Controller ({#CONTROLLER.NAME}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#CONTROLLER.NAME}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.13.1.4
+                - '0'
+        - uuid: 6e42bac90d0a4b49ab9b48e0a429bbf2
+          name: 'Controller fan discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.16.1.4,1.3.6.1.4.1.674.11000.2000.500.1.2.16.1.8,1.3.6.1.4.1.674.11000.2000.500.1.2.16.1.9,1.3.6.1.4.1.674.11000.2000.500.1.2.16.1.10,1.3.6.1.4.1.674.11000.2000.500.1.2.16.1.11]'
+          key: controller.fan.discovery
+          delay: 8h
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: cc158f48e3dd4079abfb5ba998ef62ab
+              name: 'Fan ({#FAN.NAME}): Current speed'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.16.1.5.{#SNMPINDEX}]'
+              key: 'controller.fan.current.speed.[{#FAN.NAME}]'
+              delay: 5m
+              trends: '0'
+              units: RPM
+              description: 'DELL-STORAGE-SC-MIB: sc ctlr fan current rpm'
+              tags:
+                - tag: component
+                  value: fan
+                - tag: fan
+                  value: '{#FAN.NAME}'
+              trigger_prototypes:
+                - uuid: eea6edf4dce641518d6625f2995acfe0
+                  expression: 'max(/Dell storage SC by SNMP/controller.fan.current.speed.[{#FAN.NAME}],#3)<={#FAN.MIN.THRESHOLD}'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'min(/Dell storage SC by SNMP/controller.fan.current.speed.[{#FAN.NAME}],#3)>{#FAN.MIN.THRESHOLD}'
+                  name: 'Fan ({#FAN.NAME}): Current speed is 0 or very low (< {#FAN.MIN.THRESHOLD} RPM)'
+                  priority: AVERAGE
+                - uuid: b5513166acee42df95d21329c3210489
+                  expression: 'min(/Dell storage SC by SNMP/controller.fan.current.speed.[{#FAN.NAME}],#3)>={#FAN.HIGH.THRESHOLD}'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'max(/Dell storage SC by SNMP/controller.fan.current.speed.[{#FAN.NAME}],#3)<{#FAN.HIGH.THRESHOLD}'
+                  name: 'Fan ({#FAN.NAME}): Current speed is high (> {#FAN.HIGH.THRESHOLD} RPM)'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Fan ({#FAN.NAME}): Current speed is very high (> {#FAN.MAX.THRESHOLD} RPM)'
+                      expression: 'min(/Dell storage SC by SNMP/controller.fan.current.speed.[{#FAN.NAME}],#3)>={#FAN.MAX.THRESHOLD}'
+                      recovery_expression: 'max(/Dell storage SC by SNMP/controller.fan.current.speed.[{#FAN.NAME}],#3)<{#FAN.MAX.THRESHOLD}'
+                - uuid: 124e2f986d5b40588157c06393c67cab
+                  expression: 'max(/Dell storage SC by SNMP/controller.fan.current.speed.[{#FAN.NAME}],#3)<={#FAN.LOW.THRESHOLD}'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'min(/Dell storage SC by SNMP/controller.fan.current.speed.[{#FAN.NAME}],#3)>{#FAN.LOW.THRESHOLD}'
+                  name: 'Fan ({#FAN.NAME}): Current speed is low (< {#FAN.LOW.THRESHOLD} RPM)'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Fan ({#FAN.NAME}): Current speed is 0 or very low (< {#FAN.MIN.THRESHOLD} RPM)'
+                      expression: 'max(/Dell storage SC by SNMP/controller.fan.current.speed.[{#FAN.NAME}],#3)<={#FAN.MIN.THRESHOLD}'
+                      recovery_expression: 'min(/Dell storage SC by SNMP/controller.fan.current.speed.[{#FAN.NAME}],#3)>{#FAN.MIN.THRESHOLD}'
+                - uuid: 52d20c64f8cb46359852dfa336daefcc
+                  expression: 'min(/Dell storage SC by SNMP/controller.fan.current.speed.[{#FAN.NAME}],#3)>={#FAN.MAX.THRESHOLD}'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'max(/Dell storage SC by SNMP/controller.fan.current.speed.[{#FAN.NAME}],#3)<{#FAN.MAX.THRESHOLD}'
+                  name: 'Fan ({#FAN.NAME}): Current speed is very high (> {#FAN.MAX.THRESHOLD} RPM)'
+                  priority: AVERAGE
+            - uuid: 8c27991548564af7850648a88e562577
+              name: 'Fan ({#FAN.NAME}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.16.1.3.{#SNMPINDEX}]'
+              key: 'controller.fan.status.[{#FAN.NAME}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc ctlr fan status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: fan
+                - tag: fan
+                  value: '{#FAN.NAME}'
+              trigger_prototypes:
+                - uuid: 21003879d939418da8d37c01245d1466
+                  expression: 'last(/Dell storage SC by SNMP/controller.fan.status.[{#FAN.NAME}])=3'
+                  name: 'Fan ({#FAN.NAME}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Fan ({#FAN.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/controller.fan.status.[{#FAN.NAME}])=2'
+                - uuid: d59baa1e31f04b449f8780631ab74bc5
+                  expression: 'last(/Dell storage SC by SNMP/controller.fan.status.[{#FAN.NAME}])=2'
+                  name: 'Fan ({#FAN.NAME}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#FAN.NAME}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.16.1.4
+                - '0'
+                - '{#FAN.LOW.THRESHOLD}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.16.1.8
+                - '0'
+                - '{#FAN.HIGH.THRESHOLD}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.16.1.9
+                - '0'
+                - '{#FAN.MIN.THRESHOLD}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.16.1.10
+                - '0'
+                - '{#FAN.MAX.THRESHOLD}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.16.1.11
+                - '0'
+        - uuid: 076be9150a374cff9fd2fc0c770e7336
+          name: 'Controller power supply discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.17.1.4]'
+          key: controller.power.supply.discovery
+          delay: 8h
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: 51fc2e46fb6f42329a7d99dafe31d50d
+              name: 'PSU ({#PSU.NAME}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.17.1.3.{#SNMPINDEX}]'
+              key: 'controller.psu.status.[{#PSU.NAME}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc ctlr power status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: PSU
+                - tag: PSU
+                  value: '{#PSU.NAME}'
+              trigger_prototypes:
+                - uuid: b72689d59cd24111bf29d762c6b1606c
+                  expression: 'last(/Dell storage SC by SNMP/controller.psu.status.[{#PSU.NAME}])=3'
+                  name: 'PSU ({#PSU.NAME}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'PSU ({#PSU.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/controller.psu.status.[{#PSU.NAME}])=2'
+                - uuid: 6e18c6852c0d4edf984bd6b5ac28eb9f
+                  expression: 'last(/Dell storage SC by SNMP/controller.psu.status.[{#PSU.NAME}])=2'
+                  name: 'PSU ({#PSU.NAME}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#PSU.NAME}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.17.1.4
+                - '0'
+        - uuid: e719c62f08004d14bdfb65543c01ca38
+          name: 'Controller temperature sensor discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.19.1.4,1.3.6.1.4.1.674.11000.2000.500.1.2.19.1.8,1.3.6.1.4.1.674.11000.2000.500.1.2.19.1.9,1.3.6.1.4.1.674.11000.2000.500.1.2.19.1.10,1.3.6.1.4.1.674.11000.2000.500.1.2.19.1.11]'
+          key: controller.temperature.sensor.discovery
+          delay: 8h
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: 0c6b68c49c7444bba979ea1b105ece8c
+              name: 'Temperature sensor ({#SENSOR.NAME}): Current temperature'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.19.1.5.{#SNMPINDEX}]'
+              key: 'controller.temperature.sensor.current.temperature.[{#SENSOR.NAME}]'
+              delay: 5m
+              units: °C
+              description: 'DELL-STORAGE-SC-MIB: sc ctlr temp currentc'
+              tags:
+                - tag: component
+                  value: sensor
+                - tag: sensor
+                  value: temperature
+                - tag: 'temperature sensor'
+                  value: '{#SENSOR.NAME}'
+              trigger_prototypes:
+                - uuid: 73a94b2d19df4451a1a7dc8011c8f9a2
+                  expression: 'min(/Dell storage SC by SNMP/controller.temperature.sensor.current.temperature.[{#SENSOR.NAME}],#3)>={#SENSOR.HIGH.THRESHOLD}'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'max(/Dell storage SC by SNMP/controller.temperature.sensor.current.temperature.[{#SENSOR.NAME}],#3)<{#SENSOR.HIGH.THRESHOLD}-2'
+                  name: 'Temperature sensor ({#SENSOR.NAME}): Current temperature is high (> {#SENSOR.HIGH.THRESHOLD} °C)'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Temperature sensor ({#SENSOR.NAME}): Current temperature is very high (> {#SENSOR.MAX.THRESHOLD} °C)'
+                      expression: 'min(/Dell storage SC by SNMP/controller.temperature.sensor.current.temperature.[{#SENSOR.NAME}],#3)>={#SENSOR.MAX.THRESHOLD}'
+                      recovery_expression: 'max(/Dell storage SC by SNMP/controller.temperature.sensor.current.temperature.[{#SENSOR.NAME}],#3)<{#SENSOR.MAX.THRESHOLD}-2'
+                - uuid: 09183fd2db9e46ab819ca524563aab18
+                  expression: 'min(/Dell storage SC by SNMP/controller.temperature.sensor.current.temperature.[{#SENSOR.NAME}],#3)>={#SENSOR.MAX.THRESHOLD}'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'max(/Dell storage SC by SNMP/controller.temperature.sensor.current.temperature.[{#SENSOR.NAME}],#3)<{#SENSOR.MAX.THRESHOLD}-2'
+                  name: 'Temperature sensor ({#SENSOR.NAME}): Current temperature is very high (> {#SENSOR.MAX.THRESHOLD} °C)'
+                  priority: HIGH
+            - uuid: d83f75149319440fb470108111f1bb6c
+              name: 'Temperature sensor ({#SENSOR.NAME}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.19.1.3.{#SNMPINDEX}]'
+              key: 'controller.temperature.sensor.status.[{#SENSOR.NAME}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc ctlr temp status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: sensor
+                - tag: sensor
+                  value: temperature
+                - tag: 'temperature sensor'
+                  value: '{#SENSOR.NAME}'
+              trigger_prototypes:
+                - uuid: 55f5e65869ce46ccbfef49231a49fbe2
+                  expression: 'last(/Dell storage SC by SNMP/controller.temperature.sensor.status.[{#SENSOR.NAME}])=3'
+                  name: 'Temperature sensor ({#SENSOR.NAME}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Temperature sensor ({#SENSOR.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/controller.temperature.sensor.status.[{#SENSOR.NAME}])=2'
+                - uuid: f4e9bf0f506b4532a8dfaf9d12b1c487
+                  expression: 'last(/Dell storage SC by SNMP/controller.temperature.sensor.status.[{#SENSOR.NAME}])=2'
+                  name: 'Temperature sensor ({#SENSOR.NAME}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#SENSOR.NAME}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.19.1.4
+                - '0'
+                - '{#SENSOR.LOW.THRESHOLD}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.19.1.8
+                - '0'
+                - '{#SENSOR.HIGH.THRESHOLD}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.19.1.9
+                - '0'
+                - '{#SENSOR.MIN.THRESHOLD}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.19.1.10
+                - '0'
+                - '{#SENSOR.MAX.THRESHOLD}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.19.1.11
+                - '0'
+        - uuid: 6350019cceb844b3913618dd442d09a9
+          name: 'Controller voltage sensor discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.18.1.4]'
+          key: controller.voltage.sensor.discovery
+          delay: 8h
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: d8cd1cc3415d427291913400979bf2e9
+              name: 'Voltage sensor ({#SENSOR.NAME}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.18.1.3.{#SNMPINDEX}]'
+              key: 'controller.voltage.sensor.status.[{#SENSOR.NAME}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc ctlr voltage status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: sensor
+                - tag: sensor
+                  value: voltage
+                - tag: 'voltage sensor'
+                  value: '{#SENSOR.NAME}'
+              trigger_prototypes:
+                - uuid: ce109aa78fb4488da87aa09ffa2cb489
+                  expression: 'last(/Dell storage SC by SNMP/controller.voltage.sensor.status.[{#SENSOR.NAME}])=3'
+                  name: 'Voltage sensor ({#SENSOR.NAME}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Voltage sensor ({#SENSOR.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/controller.voltage.sensor.status.[{#SENSOR.NAME}])=2'
+                - uuid: b893b05ebb884f9a826004bb9c9c5d07
+                  expression: 'last(/Dell storage SC by SNMP/controller.voltage.sensor.status.[{#SENSOR.NAME}])=2'
+                  name: 'Voltage sensor ({#SENSOR.NAME}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#SENSOR.NAME}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.18.1.4
+                - '0'
+        - uuid: 4c1fb4cbb7d742c4af7de7550e0228eb
+          name: 'Disk discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.14.1.4]'
+          key: disk.discovery
+          delay: 1h
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: 0b72d69b5ba745e98def46201130b07b
+              name: 'Disk ({#DISK.POSITION}): Health'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.14.1.5.{#SNMPINDEX}]'
+              key: 'disk.health.[{#DISK.POSITION}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc disk healthy
+                healthy [true] (1)
+                not healthy [false] (2)
+              valuemap:
+                name: 'Disk health'
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: disk
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DISK.POSITION}'
+              trigger_prototypes:
+                - uuid: 73261bbd2e874417b5288638d7e81af5
+                  expression: 'last(/Dell storage SC by SNMP/disk.health.[{#DISK.POSITION}])=2'
+                  name: 'Disk ({#DISK.POSITION}): Health is not ok'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Disk ({#DISK.POSITION}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/disk.status.[{#DISK.POSITION}])=2'
+            - uuid: fbc278d4f07b4ecdbeda36a5486047ce
+              name: 'Disk ({#DISK.POSITION}): IO port type'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.14.1.10.{#SNMPINDEX}]'
+              key: 'disk.io.port.type.[{#DISK.POSITION}]'
+              delay: 8h
+              description: |
+                DELL-STORAGE-SC-MIB: sc disk io port type
+                fibrechannel(1)
+                iscsi(2)
+                fcoe [fibrechanneloverethernet] (3)
+                sas(4)
+                unknown(5)
+              valuemap:
+                name: 'Disk IO port type'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: disk
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DISK.POSITION}'
+            - uuid: 7bcc29f9a2514f47a254f00338d71002
+              name: 'Disk ({#DISK.POSITION}): Model'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.45.1.5.{#SNMPINDEX}]'
+              key: 'disk.model.[{#DISK.POSITION}]'
+              delay: 8h
+              value_type: CHAR
+              description: 'DELL-STORAGE-SC-MIB: sc disk config product'
+              preprocessing:
+                - type: STR_REPLACE
+                  parameters:
+                    - \s
+                    - ''
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: disk
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DISK.POSITION}'
+            - uuid: 279f4dca251a4619b1382a29018aaf2a
+              name: 'Disk ({#DISK.POSITION}): Revision'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.45.1.7.{#SNMPINDEX}]'
+              key: 'disk.revision.[{#DISK.POSITION}]'
+              delay: 8h
+              value_type: CHAR
+              description: 'DELL-STORAGE-SC-MIB: sc disk config rev'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: disk
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DISK.POSITION}'
+            - uuid: c66a40bcdc384eebb83b041c20b243d7
+              name: 'Disk ({#DISK.POSITION}): Serial number'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.45.1.3.{#SNMPINDEX}]'
+              key: 'disk.serial.number.[{#DISK.POSITION}]'
+              delay: 8h
+              value_type: CHAR
+              description: 'DELL-STORAGE-SC-MIB: sc disk config serial'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: disk
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DISK.POSITION}'
+              trigger_prototypes:
+                - uuid: 647f26fcf5184520a02b0066bcbe174b
+                  expression: 'change(/Dell storage SC by SNMP/disk.serial.number.[{#DISK.POSITION}])=1 and length(last(/Dell storage SC by SNMP/disk.serial.number.[{#DISK.POSITION}]))>0'
+                  name: 'Disk ({#DISK.POSITION}) has been replaced (new serial number received)'
+                  opdata: 'Current serial number: {ITEM.LASTVALUE}'
+                  priority: INFO
+                  description: 'Acknowledge to close the problem manually.'
+                  manual_close: 'YES'
+            - uuid: d35cb6cd59bb47b09e8bc973351ca396
+              name: 'Disk ({#DISK.POSITION}): Size'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.14.1.9.{#SNMPINDEX}]'
+              key: 'disk.size.[{#DISK.POSITION}]'
+              delay: 8h
+              trends: '0'
+              units: B
+              description: 'DELL-STORAGE-SC-MIB: sc disk size'
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '1073741824'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: disk
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DISK.POSITION}'
+            - uuid: f2c28ee9fb634a859c3adafe1ce13059
+              name: 'Disk ({#DISK.POSITION}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.14.1.3.{#SNMPINDEX}]'
+              key: 'disk.status.[{#DISK.POSITION}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc disk status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: disk
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DISK.POSITION}'
+              trigger_prototypes:
+                - uuid: 92e48e26a71741179c96cbaf0634cc6d
+                  expression: 'last(/Dell storage SC by SNMP/disk.status.[{#DISK.POSITION}])=3'
+                  name: 'Disk ({#DISK.POSITION}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Disk ({#DISK.POSITION}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/disk.status.[{#DISK.POSITION}])=2'
+                - uuid: 1c6089d0796e4343a280016a07fbdd85
+                  expression: 'last(/Dell storage SC by SNMP/disk.status.[{#DISK.POSITION}])=2'
+                  name: 'Disk ({#DISK.POSITION}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#DISK.POSITION}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.14.1.4
+                - '0'
+        - uuid: cc08c281e44348bca436b3ec206fab18
+          name: 'Disk folder discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.25.1.4]'
+          key: disk.folder.discovery
+          delay: 8h
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#DISK.FOLDER.NAME}'
+                value: '{$DISK.FOLDER.NAME.MATCHES}'
+              - macro: '{#DISK.FOLDER.NAME}'
+                value: '{$DISK.FOLDER.NAME.NOT.MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: be1066b5ba5f4237b1d0550cd874b728
+              name: 'Disk folder ({#DISK.FOLDER.NAME}): Space allocated'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.32.1.7.{#SNMPINDEX}]'
+              key: 'disk.folder.space.allocated.[{#DISK.FOLDER.NAME}]'
+              delay: 15m
+              units: B
+              description: |
+                DELL-STORAGE-SC-MIB: sc disk foldersualloc space
+                Matches 'Total space allocated for volume use' minus 'Unhealthy/Bad disk space' on SC GUI.
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '1073741824'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: 'disk folder'
+                  value: '{#DISK.FOLDER.NAME}'
+            - uuid: d13889e38ef24da685e5e8526409b58f
+              name: 'Disk folder ({#DISK.FOLDER.NAME}): Space free'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.32.1.8.{#SNMPINDEX}]'
+              key: 'disk.folder.space.free.[{#DISK.FOLDER.NAME}]'
+              delay: 15m
+              units: B
+              description: |
+                DELL-STORAGE-SC-MIB:  sc disk foldersufree space
+                scDiskFolderSUFreeSpace = scDiskFolderSUTotalSpace2 - scDiskFolderSUAllocSpace - scDiskFolderSUUsedSpace2.
+                Matches 'Unallocated disk space' on SC GUI.
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '1073741824'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: 'disk folder'
+                  value: '{#DISK.FOLDER.NAME}'
+            - uuid: 48af562ee11540a18606c6fb920921c8
+              name: 'Disk folder ({#DISK.FOLDER.NAME}): Space spare'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.32.1.9.{#SNMPINDEX}]'
+              key: 'disk.folder.space.spare.[{#DISK.FOLDER.NAME}]'
+              delay: 15m
+              units: B
+              description: |
+                DELL-STORAGE-SC-MIB: sc disk foldersuspare space
+                Matches 'spares available' on SC GUI.
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '1073741824'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: 'disk folder'
+                  value: '{#DISK.FOLDER.NAME}'
+            - uuid: 8c4d7d753d094469af605b2ef58f43be
+              name: 'Disk folder ({#DISK.FOLDER.NAME}): Space total'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.32.1.5.{#SNMPINDEX}]'
+              key: 'disk.folder.space.total.[{#DISK.FOLDER.NAME}]'
+              delay: 15m
+              units: B
+              description: |
+                DELL-STORAGE-SC-MIB: sc disk foldersutotal space2
+                Matches 'Total disk space' on SC GUI.
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '1073741824'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: 'disk folder'
+                  value: '{#DISK.FOLDER.NAME}'
+            - uuid: f169d0e753bf4db596e7d9fbe02a4dd4
+              name: 'Disk folder ({#DISK.FOLDER.NAME}): Space used'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.32.1.6.{#SNMPINDEX}]'
+              key: 'disk.folder.space.used.[{#DISK.FOLDER.NAME}]'
+              delay: 15m
+              units: B
+              description: |
+                DELL-STORAGE-SC-MIB: sc disk foldersuused space2
+                Matches 'Allocated space used by volumes' on SC GUI.
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '1073741824'
+              tags:
+                - tag: component
+                  value: storage
+                - tag: 'disk folder'
+                  value: '{#DISK.FOLDER.NAME}'
+            - uuid: 5c0a730cff48476bb6b7f2203f8a5a71
+              name: 'Disk folder ({#DISK.FOLDER.NAME}): Space utilization'
+              type: CALCULATED
+              key: 'disk.folder.space.utilization.[{#DISK.FOLDER.NAME}]'
+              delay: 15m
+              value_type: FLOAT
+              units: '%'
+              params: '100*(last(//disk.folder.space.used.[{#DISK.FOLDER.NAME}])/last(//disk.folder.space.total.[{#DISK.FOLDER.NAME}]))'
+              description: calculated
+              tags:
+                - tag: component
+                  value: storage
+                - tag: 'disk folder'
+                  value: '{#DISK.FOLDER.NAME}'
+              trigger_prototypes:
+                - uuid: 989f7146f0374df8b0504d2e30f934a8
+                  expression: 'last(/Dell storage SC by SNMP/disk.folder.space.utilization.[{#DISK.FOLDER.NAME}])>={$DISK.FOLDER.SPACE.UTIL.HIGH}'
+                  name: 'Disk folder ({#DISK.FOLDER.NAME}): Space utilization is high (> {$DISK.FOLDER.SPACE.UTIL.HIGH} %)'
+                  opdata: 'Current utilization: {ITEM.LASTVALUE}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Disk folder ({#DISK.FOLDER.NAME}): Space utilization is very high (> {$DISK.FOLDER.SPACE.UTIL.VERY.HIGH} %)'
+                      expression: 'last(/Dell storage SC by SNMP/disk.folder.space.utilization.[{#DISK.FOLDER.NAME}])>={$DISK.FOLDER.SPACE.UTIL.VERY.HIGH}'
+                - uuid: 4ecc14f3ba3145fea8c563a1136fb58f
+                  expression: 'last(/Dell storage SC by SNMP/disk.folder.space.utilization.[{#DISK.FOLDER.NAME}])>={$DISK.FOLDER.SPACE.UTIL.VERY.HIGH}'
+                  name: 'Disk folder ({#DISK.FOLDER.NAME}): Space utilization is very high (> {$DISK.FOLDER.SPACE.UTIL.VERY.HIGH} %)'
+                  opdata: 'Current utilization: {ITEM.LASTVALUE}'
+                  priority: AVERAGE
+            - uuid: 7ab1a091e7b24251b590fcc991f0af25
+              name: 'Disk folder ({#DISK.FOLDER.NAME}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.25.1.3.{#SNMPINDEX}]'
+              key: 'disk.folder.status.[{#DISK.FOLDER.NAME}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc disk folder status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: storage
+                - tag: 'disk folder'
+                  value: '{#DISK.FOLDER.NAME}'
+              trigger_prototypes:
+                - uuid: 3b19ee5da8fd44c2810285692841e150
+                  expression: 'last(/Dell storage SC by SNMP/disk.folder.status.[{#DISK.FOLDER.NAME}])=3'
+                  name: 'Disk folder ({#DISK.FOLDER.NAME}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Disk folder ({#DISK.FOLDER.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/disk.folder.status.[{#DISK.FOLDER.NAME}])=2'
+                - uuid: 51222ad934b04fe9848fff42448624ff
+                  expression: 'last(/Dell storage SC by SNMP/disk.folder.status.[{#DISK.FOLDER.NAME}])=2'
+                  name: 'Disk folder ({#DISK.FOLDER.NAME}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#DISK.FOLDER.NAME}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.25.1.4
+                - '0'
+        - uuid: a1d1ceef6ae449c194f66da952c654f9
+          name: 'Enclosure discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.15.1.4]'
+          key: enclosure.discovery
+          delay: 8h
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: 5c2bda4c77b14db09d3b6c15d71bbfa4
+              name: 'Enclosure ({#ENCLOSURE.NAME}): Model'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.15.1.7.{#SNMPINDEX}]'
+              key: 'enclosure.model.[{#ENCLOSURE.NAME}]'
+              delay: 8h
+              value_type: CHAR
+              description: 'DELL-STORAGE-SC-MIB: sc encl model'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: enclosure
+                - tag: enclosure
+                  value: '{#ENCLOSURE.NAME}'
+            - uuid: 793b6c00f0594764859b24bb54e60a41
+              name: 'Enclosure ({#ENCLOSURE.NAME}): Serial number'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.15.1.9.{#SNMPINDEX}]'
+              key: 'enclosure.serial.number.[{#ENCLOSURE.NAME}]'
+              delay: 8h
+              value_type: CHAR
+              description: 'DELL-STORAGE-SC-MIB: sc encl service tag'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: enclosure
+                - tag: enclosure
+                  value: '{#ENCLOSURE.NAME}'
+              trigger_prototypes:
+                - uuid: 4cb29e34d3d3454092216eaba809a987
+                  expression: 'change(/Dell storage SC by SNMP/enclosure.serial.number.[{#ENCLOSURE.NAME}])=1 and length(last(/Dell storage SC by SNMP/enclosure.serial.number.[{#ENCLOSURE.NAME}]))>0'
+                  name: 'Enclosure ({#ENCLOSURE.NAME}) has been replaced (new serial number received)'
+                  opdata: 'Current serial number: {ITEM.LASTVALUE}'
+                  priority: INFO
+                  description: 'Acknowledge to close the problem manually.'
+                  manual_close: 'YES'
+            - uuid: 05a0111831054ae8b60b5000e762bf68
+              name: 'Enclosure ({#ENCLOSURE.NAME}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.15.1.3.{#SNMPINDEX}]'
+              key: 'enclosure.status.[{#ENCLOSURE.NAME}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc encl status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: enclosure
+                - tag: enclosure
+                  value: '{#ENCLOSURE.NAME}'
+              trigger_prototypes:
+                - uuid: 53d5b97d9f024bd18cb7b276ea0ceb6c
+                  expression: 'last(/Dell storage SC by SNMP/enclosure.status.[{#ENCLOSURE.NAME}])=3'
+                  name: 'Enclosure ({#ENCLOSURE.NAME}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Enclosure ({#ENCLOSURE.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/enclosure.status.[{#ENCLOSURE.NAME}])=2'
+                - uuid: e2955ad866024ce8966a22a6c80e3c6a
+                  expression: 'last(/Dell storage SC by SNMP/enclosure.status.[{#ENCLOSURE.NAME}])=2'
+                  name: 'Enclosure ({#ENCLOSURE.NAME}): Status is down'
+                  priority: HIGH
+            - uuid: 358e916103e14929aa43ddf6648af51e
+              name: 'Enclosure ({#ENCLOSURE.NAME}): Type'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.15.1.6.{#SNMPINDEX}]'
+              key: 'enclosure.type.[{#ENCLOSURE.NAME}]'
+              delay: 8h
+              value_type: CHAR
+              description: 'DELL-STORAGE-SC-MIB: sc encl type'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: enclosure
+                - tag: enclosure
+                  value: '{#ENCLOSURE.NAME}'
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#ENCLOSURE.NAME}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.15.1.4
+                - '0'
+        - uuid: a86df3830235469e87d4e13d2d13f1fd
+          name: 'Enclosure fan discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.20.1.4]'
+          key: enclosure.fan.discovery
+          delay: 8h
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: 9116cb8f3c5b49faa28c84764b7ecc2f
+              name: 'Fan ({#FAN.LOCATION}): Current speed'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.20.1.5.{#SNMPINDEX}]'
+              key: 'enclosure.fan.current.speed.[{#FAN.LOCATION}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc encl fan currents
+                unknown (0)
+                off (1)
+                low (2)
+                medium (3)
+                high (4)
+              valuemap:
+                name: 'Enclosure fan speed'
+              preprocessing:
+                - type: STR_REPLACE
+                  parameters:
+                    - Unknown
+                    - '0'
+                - type: STR_REPLACE
+                  parameters:
+                    - 'Off'
+                    - '1'
+                - type: STR_REPLACE
+                  parameters:
+                    - Low
+                    - '2'
+                - type: STR_REPLACE
+                  parameters:
+                    - Medium
+                    - '3'
+                - type: STR_REPLACE
+                  parameters:
+                    - High
+                    - '4'
+              tags:
+                - tag: component
+                  value: fan
+                - tag: fan
+                  value: '{#FAN.LOCATION}'
+              trigger_prototypes:
+                - uuid: 2be37d64d91d4967ab1c3a880d18e727
+                  expression: 'count(/Dell storage SC by SNMP/enclosure.fan.current.speed.[{#FAN.LOCATION}],#3,"eq",1)=3'
+                  name: 'Fan ({#FAN.LOCATION}) is off'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Fan ({#FAN.LOCATION}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/enclosure.fan.status.[{#FAN.LOCATION}])=2'
+            - uuid: 3cc85bc8e80343709c3b14e5583f86e4
+              name: 'Fan ({#FAN.LOCATION}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.20.1.3.{#SNMPINDEX}]'
+              key: 'enclosure.fan.status.[{#FAN.LOCATION}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc encl fan status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: fan
+                - tag: fan
+                  value: '{#FAN.LOCATION}'
+              trigger_prototypes:
+                - uuid: f7155ea8e9d549c28fdc01e174d2f1bb
+                  expression: 'last(/Dell storage SC by SNMP/enclosure.fan.status.[{#FAN.LOCATION}])=3'
+                  name: 'Fan ({#FAN.LOCATION}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Fan ({#FAN.LOCATION}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/enclosure.fan.status.[{#FAN.LOCATION}])=2'
+                - uuid: f2082440511841249ecf30bcbbca20ce
+                  expression: 'last(/Dell storage SC by SNMP/enclosure.fan.status.[{#FAN.LOCATION}])=2'
+                  name: 'Fan ({#FAN.LOCATION}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#FAN.LOCATION}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.20.1.4
+                - '0'
+        - uuid: 7b46d1836aa048d9a15f1521bd086b95
+          name: 'Enclosure IO module discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.22.1.4]'
+          key: enclosure.io.module.discovery
+          delay: 8h
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: 430f88e130a84640bc8736a4dfbcd00f
+              name: 'IO module ({#MODULE.POSITION}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.22.1.3.{#SNMPINDEX}]'
+              key: 'io.module.status.[{#MODULE.POSITION}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc encl io mod status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: 'IO module'
+                - tag: 'IO module'
+                  value: '{#MODULE.POSITION}'
+              trigger_prototypes:
+                - uuid: 1c68caa3b5ac47a782fc09265f55b312
+                  expression: 'last(/Dell storage SC by SNMP/io.module.status.[{#MODULE.POSITION}])=3'
+                  name: 'IO module ({#MODULE.POSITION}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'IO module ({#MODULE.POSITION}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/io.module.status.[{#MODULE.POSITION}])=2'
+                - uuid: 96876f73c9fa4d5aac70123103385f7c
+                  expression: 'last(/Dell storage SC by SNMP/io.module.status.[{#MODULE.POSITION}])=2'
+                  name: 'IO module ({#MODULE.POSITION}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#MODULE.POSITION}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.22.1.4
+                - '0'
+        - uuid: 1a6935bca4e849638db9e7b3f3caa706
+          name: 'Enclosure power supply discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.21.1.4]'
+          key: enclosure.power.supply.discovery
+          delay: 8h
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: c1b56af5c80d490b8d09c4454fc15601
+              name: 'PSU ({#PSU.POSITION}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.21.1.3.{#SNMPINDEX}]'
+              key: 'enclosure.psu.status.[{#PSU.POSITION}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc encl power status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: PSU
+                - tag: PSU
+                  value: '{#PSU.POSITION}'
+              trigger_prototypes:
+                - uuid: 8feaadb4dc0c40bbb609733f0ce472f4
+                  expression: 'last(/Dell storage SC by SNMP/enclosure.psu.status.[{#PSU.POSITION}])=3'
+                  name: 'PSU ({#PSU.POSITION}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'PSU ({#PSU.POSITION}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/enclosure.psu.status.[{#PSU.POSITION}])=2'
+                - uuid: dc739508acea488eac56a2ab8d616621
+                  expression: 'last(/Dell storage SC by SNMP/enclosure.psu.status.[{#PSU.POSITION}])=2'
+                  name: 'PSU ({#PSU.POSITION}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#PSU.POSITION}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.21.1.4
+                - '0'
+        - uuid: 93728506b00d46cb984a0fd2142b41b1
+          name: 'Enclosure temperature sensor discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.23.1.4]'
+          key: enclosure.temperature.sensor.discovery
+          delay: 8h
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: fbe462e5a2624f62a0e674a3b5b9597b
+              name: 'Temperature sensor ({#SENSOR.LOCATION}): Current temperature'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.23.1.5.{#SNMPINDEX}]'
+              key: 'enclosure.temperature.sensor.current.temperature.[{#SENSOR.LOCATION}]'
+              delay: 5m
+              units: °C
+              description: 'DELL-STORAGE-SC-MIB: sc encl temp currentc'
+              tags:
+                - tag: component
+                  value: sensor
+                - tag: sensor
+                  value: temperature
+                - tag: 'temperature sensor'
+                  value: '{#SENSOR.LOCATION}'
+            - uuid: 3309746b35d2440982cd602457a3cd39
+              name: 'Temperature sensor ({#SENSOR.LOCATION}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.23.1.3.{#SNMPINDEX}]'
+              key: 'enclosure.temperature.sensor.status.[{#SENSOR.LOCATION}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc encl temp status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: sensor
+                - tag: sensor
+                  value: temperature
+                - tag: 'temperature sensor'
+                  value: '{#SENSOR.LOCATION}'
+              trigger_prototypes:
+                - uuid: 474eb62fbcf2416da8f0a273bc5d7e42
+                  expression: 'last(/Dell storage SC by SNMP/enclosure.temperature.sensor.status.[{#SENSOR.LOCATION}])=3'
+                  name: 'Temperature sensor ({#SENSOR.LOCATION}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Temperature sensor ({#SENSOR.LOCATION}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/enclosure.temperature.sensor.status.[{#SENSOR.LOCATION}])=2'
+                - uuid: 87ca0ff38ce843cd9cefabf371b5d2bd
+                  expression: 'last(/Dell storage SC by SNMP/enclosure.temperature.sensor.status.[{#SENSOR.LOCATION}])=2'
+                  name: 'Temperature sensor ({#SENSOR.LOCATION}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#SENSOR.LOCATION}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.23.1.4
+                - '0'
+        - uuid: 16cbe8c0694e49eb9e3b6427b476facd
+          name: 'Managed server discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.27.1.4]'
+          key: managed.server.discovery
+          delay: 1h
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#SERVER.NAME}'
+                value: '{$MANAGED.SERVER.NAME.MATCHES}'
+              - macro: '{#SERVER.NAME}'
+                value: '{$MANAGED.SERVER.NAME.NOT.MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: 33203446541648e394af313bb119868f
+              name: 'Managed server ({#SERVER.NAME}): Connectivity'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.27.1.5.{#SNMPINDEX}]'
+              key: 'managed.server.connectivity.[{#SERVER.NAME}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc server cnctvy
+                up(1)
+                down(2)
+                partial(3)
+              valuemap:
+                name: 'Managed Server connectivity'
+              tags:
+                - tag: application
+                  value: status
+                - tag: server
+                  value: '{#SERVER.NAME}'
+              trigger_prototypes:
+                - uuid: 3fb510fbce994459988a524b9b17842d
+                  expression: 'last(/Dell storage SC by SNMP/managed.server.connectivity.[{#SERVER.NAME}])=2'
+                  name: 'Managed server ({#SERVER.NAME}): Connectivity is down'
+                  priority: HIGH
+                - uuid: 31766b8d7a8c4bb6b0fc70139ef19a68
+                  expression: 'last(/Dell storage SC by SNMP/managed.server.connectivity.[{#SERVER.NAME}])=3'
+                  name: 'Managed server ({#SERVER.NAME}): Connectivity is partial'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Managed server ({#SERVER.NAME}): Connectivity is down'
+                      expression: 'last(/Dell storage SC by SNMP/managed.server.connectivity.[{#SERVER.NAME}])=2'
+            - uuid: 98379914d1a34c18812cb28a94b2e72b
+              name: 'Managed server ({#SERVER.NAME}): Path count'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.27.1.6.{#SNMPINDEX}]'
+              key: 'managed.server.path.count.[{#SERVER.NAME}]'
+              delay: 5m
+              description: 'DELL-STORAGE-SC-MIB: sc server path count'
+              tags:
+                - tag: application
+                  value: status
+                - tag: server
+                  value: '{#SERVER.NAME}'
+              trigger_prototypes:
+                - uuid: 6969aee993b34d969f3998076ca38b2b
+                  expression: 'last(/Dell storage SC by SNMP/managed.server.path.count.[{#SERVER.NAME}])=0'
+                  name: 'Managed server ({#SERVER.NAME}): No path'
+                  priority: HIGH
+            - uuid: 70f535a64d5e46e6a4960eed29574d0e
+              name: 'Managed server ({#SERVER.NAME}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.27.1.3.{#SNMPINDEX}]'
+              key: 'managed.server.status.[{#SERVER.NAME}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc server status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: server
+                  value: '{#SERVER.NAME}'
+              trigger_prototypes:
+                - uuid: 7e38edbc5e3040b3acf4a9c5df32a1af
+                  expression: 'last(/Dell storage SC by SNMP/managed.server.status.[{#SERVER.NAME}])=3'
+                  name: 'Managed server ({#SERVER.NAME}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Managed server ({#SERVER.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/managed.server.status.[{#SERVER.NAME}])=2'
+                - uuid: c1a363ca38d243a0a9660a944f93346c
+                  expression: 'last(/Dell storage SC by SNMP/managed.server.status.[{#SERVER.NAME}])=2'
+                  name: 'Managed server ({#SERVER.NAME}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#SERVER.NAME}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.27.1.4
+                - '0'
+        - uuid: 2de0ce62071341aaab172eb01cde2d24
+          name: 'Storage Center discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.29.1.4]'
+          key: storage.center.discovery
+          delay: 8h
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: 22f6f27b1095444d818c5d027b8f239f
+              name: 'Storage Center ({#SC.NAME}): Port balance status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.29.1.7.{#SNMPINDEX}]'
+              key: 'storage.center.port.balance.status.[{#SC.NAME}]'
+              delay: 5m
+              value_type: CHAR
+              description: |
+                DELL-STORAGE-SC-MIB: sc sc ports bal
+                balanced [true] (1)
+                unbalanced [false] (2)
+              valuemap:
+                name: 'Storage Center port balance status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: 'Storage Center'
+                  value: '{#SC.NAME}'
+              trigger_prototypes:
+                - uuid: 26abb15849fb410ea9993e3f5fa73264
+                  expression: 'last(/Dell storage SC by SNMP/storage.center.port.balance.status.[{#SC.NAME}])=2'
+                  name: 'Storage Center ({#SC.NAME}): Ports are unbalanced'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Storage Center ({#SC.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/storage.center.status.[{#SC.NAME}])=2'
+            - uuid: 56d6c026d2a2480894eefbb45a9d7dc5
+              name: 'Storage Center ({#SC.NAME}): Serial number'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.29.1.9.{#SNMPINDEX}]'
+              key: 'storage.center.serial.number.[{#SC.NAME}]'
+              delay: 8h
+              value_type: CHAR
+              description: 'DELL-STORAGE-SC-MIB: sc sc serial'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: application
+                  value: general
+                - tag: 'Storage Center'
+                  value: '{#SC.NAME}'
+              trigger_prototypes:
+                - uuid: 156ff2b06bab4929b40c00c59b248a18
+                  expression: 'change(/Dell storage SC by SNMP/storage.center.serial.number.[{#SC.NAME}])=1 and length(last(/Dell storage SC by SNMP/storage.center.serial.number.[{#SC.NAME}]))>0'
+                  name: 'Storage Center ({#SC.NAME}) has been replaced (new serial number received)'
+                  opdata: 'Current serial number: {ITEM.LASTVALUE}'
+                  priority: INFO
+                  description: 'Acknowledge to close the problem manually.'
+                  manual_close: 'YES'
+            - uuid: 22e51738a8754bf4801c242490ca463c
+              name: 'Storage Center ({#SC.NAME}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.29.1.3.{#SNMPINDEX}]'
+              key: 'storage.center.status.[{#SC.NAME}]'
+              delay: 5m
+              value_type: CHAR
+              description: |
+                DELL-STORAGE-SC-MIB: sc sc status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: 'Storage Center'
+                  value: '{#SC.NAME}'
+              trigger_prototypes:
+                - uuid: 6cb63d90d29546d9ac4922fa33aff9f3
+                  expression: 'last(/Dell storage SC by SNMP/storage.center.status.[{#SC.NAME}])=3'
+                  name: 'Storage Center ({#SC.NAME}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Storage Center ({#SC.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/storage.center.status.[{#SC.NAME}])=2'
+                - uuid: cc94ccc123b64984b1f68793859411c9
+                  expression: 'last(/Dell storage SC by SNMP/storage.center.status.[{#SC.NAME}])=2'
+                  name: 'Storage Center ({#SC.NAME}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#SC.NAME}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.29.1.4
+                - '0'
+        - uuid: dd65f0227ac34ad294490c51e24ae0bf
+          name: 'Volume discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.674.11000.2000.500.1.2.26.1.4]'
+          key: volume.discovery
+          delay: 8h
+          description: DELL-STORAGE-SC-MIB
+          item_prototypes:
+            - uuid: 6472104993724d7099e69cfb92ed1642
+              name: 'Volume ({#VOLUME.NAME}): Status'
+              type: SNMP_AGENT
+              snmp_oid: 'get[1.3.6.1.4.1.674.11000.2000.500.1.2.26.1.3.{#SNMPINDEX}]'
+              key: 'volume.status.[{#VOLUME.NAME}]'
+              delay: 5m
+              description: |
+                DELL-STORAGE-SC-MIB: sc volume status
+                up(1)
+                down(2)
+                degraded(3)
+              valuemap:
+                name: 'Component status'
+              tags:
+                - tag: application
+                  value: status
+                - tag: component
+                  value: storage
+                - tag: volume
+                  value: '{#VOLUME.NAME}'
+              trigger_prototypes:
+                - uuid: 187d474595aa409da33df0d753f32a62
+                  expression: 'last(/Dell storage SC by SNMP/volume.status.[{#VOLUME.NAME}])=3'
+                  name: 'Volume ({#VOLUME.NAME}): Status is degraded'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'Volume ({#VOLUME.NAME}): Status is down'
+                      expression: 'last(/Dell storage SC by SNMP/volume.status.[{#VOLUME.NAME}])=2'
+                - uuid: 6855fccc17f940cdb256dc03d28e6206
+                  expression: 'last(/Dell storage SC by SNMP/volume.status.[{#VOLUME.NAME}])=2'
+                  name: 'Volume ({#VOLUME.NAME}): Status is down'
+                  priority: HIGH
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#VOLUME.NAME}'
+                - 1.3.6.1.4.1.674.11000.2000.500.1.2.26.1.4
+                - '0'
+      tags:
+        - tag: class
+          value: hardware
+        - tag: class
+          value: storage
+        - tag: vendor
+          value: Dell
+      macros:
+        - macro: '{$DISK.FOLDER.NAME.MATCHES}'
+          value: '.*'
+        - macro: '{$DISK.FOLDER.NAME.NOT.MATCHES}'
+          value: ^Unassigned$
+        - macro: '{$DISK.FOLDER.SPACE.UTIL.HIGH}'
+          value: '80'
+          description: 'in % (write only number)'
+        - macro: '{$DISK.FOLDER.SPACE.UTIL.VERY.HIGH}'
+          value: '90'
+          description: 'in % (write only number)'
+        - macro: '{$MANAGED.SERVER.NAME.MATCHES}'
+          value: '.*'
+        - macro: '{$MANAGED.SERVER.NAME.NOT.MATCHES}'
+          value: CHANGE_IF_NEEDED
+      valuemaps:
+        - uuid: 9a6699a351e04ee39d2803917bbf2660
+          name: 'Component status'
+          mappings:
+            - value: '1'
+              newvalue: up
+            - value: '2'
+              newvalue: down
+            - value: '3'
+              newvalue: degraded
+        - uuid: b21e3aeb4594472a8334f3637bbb970b
+          name: 'Controller cache battery status'
+          mappings:
+            - value: '0'
+              newvalue: noBattery
+            - value: '1'
+              newvalue: normal
+            - value: '2'
+              newvalue: expirationPending
+            - value: '3'
+              newvalue: expired
+        - uuid: 79802c9124cd493b820a958d996f056e
+          name: 'Disk health'
+          mappings:
+            - value: '1'
+              newvalue: healthy
+            - value: '2'
+              newvalue: 'not healthy'
+        - uuid: e3848cddf6274ccc83f6c22a61577a74
+          name: 'Disk IO port type'
+          mappings:
+            - value: '1'
+              newvalue: fibrechannel
+            - value: '2'
+              newvalue: iscsi
+            - value: '3'
+              newvalue: fcoe
+            - value: '4'
+              newvalue: sas
+            - value: '5'
+              newvalue: unknown
+        - uuid: 842ab330bdc946a9b4d17e14ca2ec425
+          name: 'Enclosure fan speed'
+          mappings:
+            - value: '0'
+              newvalue: unknown
+            - value: '1'
+              newvalue: 'off'
+            - value: '2'
+              newvalue: low
+            - value: '3'
+              newvalue: medium
+            - value: '4'
+              newvalue: high
+        - uuid: 2bf21e80d0894e00b84e5b519a11519e
+          name: 'Managed Server connectivity'
+          mappings:
+            - value: '1'
+              newvalue: up
+            - value: '2'
+              newvalue: down
+            - value: '3'
+              newvalue: partial
+        - uuid: a960854b9c3c438881e0aef0536a3a9d
+          name: 'Overall status'
+          mappings:
+            - value: '1'
+              newvalue: other
+            - value: '2'
+              newvalue: unknown
+            - value: '3'
+              newvalue: ok
+            - value: '4'
+              newvalue: noncritical
+            - value: '5'
+              newvalue: critical
+            - value: '6'
+              newvalue: nonrecoverable
+        - uuid: ea34fe41771a48e784f711655b45349a
+          name: 'Storage Center port balance status'
+          mappings:
+            - value: '1'
+              newvalue: balanced
+            - value: '2'
+              newvalue: unbalanced
+        - uuid: 9d69da20f31c44a4babb6f94bece8e7d
+          name: True-false
+          mappings:
+            - value: '1'
+              newvalue: 'true'
+            - value: '2'
+              newvalue: 'false'
